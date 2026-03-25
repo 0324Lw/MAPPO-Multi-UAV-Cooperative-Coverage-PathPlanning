@@ -1,2 +1,75 @@
-# MAPPO-Multi-UAV-Cooperative-Coverage-PathPlanning
-基于 MAPPO (Multi-Agent Proximal Policy Optimization) 深度强化学习的多无人机协同覆盖路径规划与动态避障算法
+# 🚀 MAPPO-Multi-UAV-Cooperative-Coverage
+
+> 基于 MAPPO (Multi-Agent Proximal Policy Optimization) 深度强化学习的多无人机协同覆盖路径规划与动态避障算法。
+> 本项目构建了一个高度自定义的多智能体 `gymnasium` 强化学习环境，支持栅格化地图覆盖共享、多机协同避障与起终点长距离规划，内置了完整的集中式训练与分布式执行 (CTDE) 管线。
+
+## ✨ 核心特性 (Features)
+
+* 🌍 **定制化多智能体微观环境**：构建了 50m x 50m 的二维连续飞行空间，支持 3 架无人机的线速度与角速度连续控制，内置严谨的“对角线起终点”生成机制，强制拉满规划难度。
+* 🛸 **高效协同覆盖机制**：环境内置 100x100 栅格化覆盖地图。无人机受限于探测半径，需通过位置共享与覆盖图实时更新，实现“低重叠、高效率”的区域扫图。
+* 🧠 **MAPPO 强化学习底座**：采用 **CTDE (集中式训练，分布式执行)** 架构。Critic 网络拥有统揽全局的上帝视角，Actor 网络依赖局部感知。集成了正交初始化、广义优势估计 (GAE) 与学习率线性衰减机制。
+* 📊 **严格的数值稳定性调优**：状态空间全归一化处理。奖励函数经过样本测试分析，确保单步总值截断在 `[-2.0, 2.0]`，从根本上避免了梯度爆炸。
+* 📈 **工业级渲染与数据分析**：内置完备的 `DataLogger` 记录成功率与覆盖率，并提供基于 Matplotlib 的高级 GIF 渲染系统（含探测范围可视化与动态地图更新），直观展现策略演进。
+
+## 🧠 强化学习环境设计 (Environment Design)
+
+本项目针对多机协同覆盖中的“贪婪扫图”与“快速到达”之间进行了优先级重构。
+
+### 1. 状态空间 (Observation Space)
+
+智能体的局部观测状态被设计为 **131 维连续特征向量 (Continuous 131D)**：
+
+| 维度索引 | 物理含义 (Description) | 数据范围 / 说明 |
+| :---: | :--- | :--- |
+| `0:5` | **自身核心状态**：归一化坐标 $(x, y)$、偏航角 $\theta$、线速度与角速度。 | 约束动力学惯性。 |
+| `5:7` | **目标相对状态**：归一化相对距离 $d$ 与相对方位角 $\Delta\phi$。 | 引导无人机向终点移动。 |
+| `7:23` | **Lidar 避障感知**：16 线雷达射线，返回最近障碍物或队友的距离。 | 用于底层避障与防碰撞。 |
+| `23:31` | **队友共享信息**：所有队友的相对位置坐标、线速度与角速度。 | 多机防撞与协同覆盖的核心依据。 |
+| `31:131` | **局部覆盖掩码**：以自身为中心的 $10 \times 10$ 局部区域覆盖状态。 | 包含已覆盖(1)、未覆盖(0)与障碍物(-1)信息。 |
+
+### 2. 动作空间 (Action Space)
+
+采用 **2 维连续动作空间 (Continuous 2D)**：
+
+* **$a_0$ (线速度控制)**：归一化输出 $[-1.0, 1.0]$，映射至 $[0, V_{max}]$。
+* **$a_1$ (角速度控制)**：归一化输出 $[-1.0, 1.0]$，映射至 $[-\Omega_{max}, \Omega_{max}]$。
+
+### 3. 奖励函数设计 (Reward Function)
+
+遵循 **“覆盖 > 到达 > 速度”** 的优先级原则，单步奖励 $R_t$ 设计如下：
+
+$$R_{step} = \text{Clip}(r_{step} + r_{app} + r_{dir} + r_{smooth} + r_{cov} + r_{overlap} + r_{terminal}, -2.0, 2.0)$$
+
+* 🟢 **有效覆盖奖励 ($r_{cov}$)**：显著提高权重，每探测到一个未覆盖的非障碍物栅格给予正奖励。
+* 🟢 **动态终点奖励 ($r_{terminal}$)**：**核心机制**。到达终点的奖励值与全局覆盖率挂钩。覆盖率越高，终点奖励倍率越高，有效防止智能体为求快而牺牲覆盖率。
+* 🟡 **引导性奖励 ($r_{app}, r_{dir}$)**：基于势能的距离靠近奖励与航向对齐奖励。
+* 🔴 **重叠惩罚 ($r_{overlap}$)**：对扫描已覆盖区域的行为施加微弱惩罚，鼓励智能体分散探索。
+* 🔴 **动作平滑惩罚 ($r_{smooth}$)**：惩罚动作突变，消除飞行轨迹的剧烈抖动。
+* 🔴 **生存/碰撞惩罚 ($r_{step}, r_{col}$)**：每步固定的微小惩罚与碰撞后的极刑惩罚。
+
+
+
+## 🛠️ 环境依赖 (Requirements)
+
+本项目基于 Python 3.10 开发。
+
+核心依赖库：
+* `torch` (PyTorch >= 2.0)
+* `gymnasium`
+* `numpy`
+* `pandas`
+* `matplotlib`
+
+**快速安装指南：**
+```bash
+# 1. 创建虚拟环境
+conda create -n uav_env python=3.10 -y
+conda activate uav_env
+
+# 2. 安装依赖
+pip install gymnasium numpy pandas matplotlib torch
+```
+![coverage_test_2](https://github.com/user-attachments/assets/32b6dcf1-420c-4cfd-a7cb-0f39808f7736)
+![coverage_test_4](https://github.com/user-attachments/assets/0088ab79-3d41-46ec-9b3e-fa507ab363be)
+![coverage_test_5](https://github.com/user-attachments/assets/e3a40407-0d32-49cd-bfb4-04927a19a761)
+
