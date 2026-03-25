@@ -69,7 +69,6 @@ conda activate uav_env
 # 2. 安装依赖
 pip install gymnasium numpy pandas matplotlib torch
 ```
-![coverage_test_2](https://github.com/user-attachments/assets/32b6dcf1-420c-4cfd-a7cb-0f39808f7736)
-![coverage_test_4](https://github.com/user-attachments/assets/0088ab79-3d41-46ec-9b3e-fa507ab363be)
-![coverage_test_5](https://github.com/user-attachments/assets/e3a40407-0d32-49cd-bfb4-04927a19a761)
 
+![coverage_test_2](https://github.com/user-attachments/assets/2b9476f6-8c2c-4a8d-abc5-e2a40528dc0e)
+![coverage_test_5](https://github.com/user-attachments/assets/1d63f950-36a1-402f-a4b8-58a7c21c7e64)
